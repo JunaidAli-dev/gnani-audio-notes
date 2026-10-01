@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Upload, FileAudio, CheckCircle2, Loader2, AlertCircle, Clock, FileText, Sparkles, Disc3 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface AudioNote {
   id: string;
@@ -79,7 +80,7 @@ export default function Home() {
       const urlRes = await fetch(`/api/presigned-url?filename=${encodeURIComponent(file.name)}`, {
         method: 'POST',
       });
-      
+
       if (!urlRes.ok) {
         const errData = await urlRes.json().catch(() => ({}));
         throw new Error(errData.detail || 'Failed to get upload URL.');
@@ -259,13 +260,20 @@ export default function Home() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                 {/* AI Summary */}
-                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col">
+                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-full min-h-[400px]">
                   <div className="flex items-center gap-3 mb-6 bg-[#FFE66D] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827]">
                     <Sparkles size={20} className="text-gray-900" />
                     <h4 className="font-black uppercase tracking-widest text-gray-900">AI Summary</h4>
                   </div>
-                  <div className="flex-1 bg-gray-50 rounded-2xl p-6 border-4 border-gray-900 text-gray-800 font-medium leading-relaxed whitespace-pre-wrap text-lg">
-                    {activeNote.summary || "No summary generated."}
+
+                  <div className="flex-1 bg-gray-50 rounded-2xl p-6 border-4 border-gray-900 text-gray-800 font-medium leading-relaxed text-lg overflow-y-auto max-h-[500px] break-words">
+                    {activeNote?.summary ? (
+                      <div className="prose prose-lg max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:font-black prose-strong:text-gray-900 text-gray-800">
+                        <ReactMarkdown>{activeNote.summary}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500 italic">No summary generated.</span>
+                    )}
                   </div>
                 </div>
 

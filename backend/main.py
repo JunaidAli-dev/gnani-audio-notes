@@ -45,7 +45,9 @@ class StartJobRequest(BaseModel):
 
 async def generate_gemini_summary(full_transcript: str) -> str:
     prompt = (
-        "Summarize this audio transcript clearly in 2-3 concise bullet points:\n\n"
+        "Summarize the following audio transcript. Output strictly 2-3 concise bullet points. "
+        "Do NOT include any introductory or concluding sentences (e.g., do not say 'Here is a summary'). "
+        "Start directly with the first bullet point.\n\n"
         f"{full_transcript}"
     )
 
