@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileAudio, CheckCircle2, Loader2, AlertCircle, Clock, FileText, Sparkles, Disc3 } from 'lucide-react';
+import { Upload, FileAudio, CheckCircle2, Loader2, AlertCircle, Clock, FileText, Sparkles, Disc3, Server } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface AudioNote {
@@ -22,20 +22,43 @@ export default function Home() {
   const [activeNote, setActiveNote] = useState<AudioNote | null>(null);
   const [notesList, setNotesList] = useState<AudioNote[]>([]);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
+  const [isBackendWakingUp, setIsBackendWakingUp] = useState(false);
 
   useEffect(() => {
     fetchNotes();
   }, []);
 
-  const fetchNotes = async () => {
+  const fetchNotes = async (retryCount = 0) => {
     try {
-      const res = await fetch('/api/notes');
+      setIsLoadingNotes(true);
+
+      // Trigger polite waking up notice if response takes more than 2.5 seconds
+      const wakingTimer = setTimeout(() => {
+        setIsBackendWakingUp(true);
+      }, 2500);
+
+      const res = await fetch('/api/notes', { cache: 'no-store' });
+      clearTimeout(wakingTimer);
+
       if (res.ok) {
         const data = await res.json();
         setNotesList(data);
+        setIsBackendWakingUp(false);
+        setIsLoadingNotes(false);
+      } else {
+        throw new Error(`Server status: ${res.status}`);
       }
     } catch (err) {
-      console.error('Failed to fetch notes', err);
+      console.warn('Backend connecting / spin-up in progress...', err);
+      setIsBackendWakingUp(true);
+
+      // Auto-retry polling every 4s while Render spins up (up to 8 retries ~ 32s)
+      if (retryCount < 8) {
+        setTimeout(() => fetchNotes(retryCount + 1), 4000);
+      } else {
+        setIsLoadingNotes(false);
+      }
     }
   };
 
@@ -119,6 +142,7 @@ export default function Home() {
         status: 'processing',
         created_at: new Date().toISOString(),
       });
+      fetchNotes();
     } catch (err: any) {
       setPollError(err.message || 'Upload failed.');
     } finally {
@@ -147,7 +171,23 @@ export default function Home() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {notesList.length === 0 ? (
+          {(isLoadingNotes || isBackendWakingUp) && notesList.length === 0 ? (
+            <div className="bg-[#FFE66D] border-4 border-gray-900 rounded-2xl p-5 shadow-[4px_4px_0px_0px_#111827] flex flex-col items-center justify-center text-center gap-3 animate-pulse">
+              <div className="flex items-center gap-2 text-gray-900 font-black uppercase text-sm tracking-wider">
+                <Server className="animate-bounce" size={20} />
+                Waking Up Server
+              </div>
+              
+              <p className="text-xs font-bold text-gray-900 leading-relaxed">
+                The backend is hosted on Render's free tier and spins down after inactivity. Please allow <span className="underline decoration-2">~30–40 seconds</span> for the server to boot up and retrieve your tapes.
+              </p>
+
+              <div className="flex items-center gap-2 text-xs font-extrabold text-gray-900 bg-white border-2 border-gray-900 px-3 py-1.5 rounded-lg shadow-[2px_2px_0px_0px_#111827]">
+                <Loader2 className="animate-spin" size={14} />
+                Connecting, please wait...
+              </div>
+            </div>
+          ) : notesList.length === 0 ? (
             <div className="text-center p-6 border-4 border-dashed border-gray-400 rounded-2xl text-gray-500 font-medium">
               No tapes found.
             </div>
