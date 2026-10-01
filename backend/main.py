@@ -44,9 +44,10 @@ class StartJobRequest(BaseModel):
 
 
 async def generate_gemini_summary(full_transcript: str) -> str:
-    """Generates an AI summary using Google Gemini with fallback model tiers and retry logic."""
     prompt = f"Summarize this audio transcript clearly in 2-3 concise bullet points:\n\n{full_transcript}"
-    candidate_models = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+    
+    # Active Gemini models in order of priority
+    candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
     for model_name in candidate_models:
         for attempt in range(2):
@@ -58,10 +59,16 @@ async def generate_gemini_summary(full_transcript: str) -> str:
                 if response and response.text:
                     return response.text
             except Exception as e:
-                print(f"⚠️ Gemini ({model_name}) attempt {attempt + 1} failed: {str(e)}")
-                await asyncio.sleep(1.0)
+                err_str = str(e)
+                print(f"⚠️ Gemini ({model_name}) attempt {attempt + 1} failed: {err_str}")
+                
+                # If rate-limited (429), pause before attempting the next fallback/retry
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    await asyncio.sleep(5)
+                else:
+                    await asyncio.sleep(1)
 
-    return f"Summary temporarily unavailable due to high AI traffic. Transcript:\n\n{full_transcript}"
+    raise Exception("Daily Gemini Free Tier quota exceeded across all fallback models.")
 
 
 @app.post("/api/presigned-url")
