@@ -25,8 +25,8 @@ def upload_and_get_url(file_bytes: bytes, filename: str) -> str:
         Key=unique_key,
         Body=file_bytes,
         ContentType=f"audio/{ext}",
-        ACL='public-read' 
     )
     
     # 4. Construct and return the public-facing URL
-    return f"{os.getenv('STORAGE_ENDPOINT')}/{BUCKET_NAME}/{unique_key}"
+    base_public_url = os.getenv("STORAGE_ENDPOINT").replace("/storage/v1/s3", "/storage/v1/object/public")
+    return f"{base_public_url}/{BUCKET_NAME}/{unique_key}"
