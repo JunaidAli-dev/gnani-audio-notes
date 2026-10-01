@@ -44,29 +44,41 @@ class StartJobRequest(BaseModel):
 
 
 async def generate_gemini_summary(full_transcript: str) -> str:
-    prompt = f"Summarize this audio transcript clearly in 2-3 concise bullet points:\n\n{full_transcript}"
-    
-    # Active Gemini models in order of priority
-    candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
+    prompt = (
+        "Summarize this audio transcript clearly in 2-3 concise bullet points:\n\n"
+        f"{full_transcript}"
+    )
+
+    # Models ordered by quota capacity & priority
+    candidate_models = [
+        "gemini-3.5-flash-lite",  # 500 RPD
+        "gemini-3.1-flash-lite",  # 500 RPD
+        "gemma-4-26b",            # 14,400 RPD
+        "gemma-4-31b",            # 14,400 RPD
+        "gemini-3.8-flash",       # 20 RPD
+        "gemini-3.7-flash",       # 20 RPD
+        "gemini-3.5-flash",       # 20 RPD
+    ]
 
     for model_name in candidate_models:
-        for attempt in range(2):
-            try:
-                response = ai_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                if response and response.text:
-                    return response.text
-            except Exception as e:
-                err_str = str(e)
-                print(f"⚠️ Gemini ({model_name}) attempt {attempt + 1} failed: {err_str}")
-                
-                # If rate-limited (429), pause before attempting the next fallback/retry
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    await asyncio.sleep(5)
-                else:
-                    await asyncio.sleep(1)
+        try:
+            print(f"Attempting summary with: {model_name}...")
+            # Use .aio for non-blocking asynchronous calls in FastAPI
+            response = await ai_client.aio.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            if response and response.text:
+                print(f"✅ Summary generated successfully using model: {model_name}")
+                return response.text
+        except Exception as e:
+            err_str = str(e)
+            print(f"⚠️ Model {model_name} failed: {err_str}")
+            
+            # Instantly jump to the next model in candidate_models without sleeping
+            if any(token in err_str for token in ["429", "RESOURCE_EXHAUSTED", "404", "NOT_FOUND"]):
+                print(f"⏭️ Skipping {model_name} immediately due to hard error/quota exhaustion.")
+                continue
 
     raise Exception("Daily Gemini Free Tier quota exceeded across all fallback models.")
 
