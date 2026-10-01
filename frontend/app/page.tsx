@@ -257,37 +257,66 @@ export default function Home() {
 
             {/* Completed Results Grid */}
             {activeNote.status === 'completed' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-                {/* AI Summary */}
-                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-full min-h-[400px]">
-                  <div className="flex items-center gap-3 mb-6 bg-[#FFE66D] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch w-full max-w-7xl mx-auto">
+                {/* AI Summary Card */}
+                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-[550px] w-full">
+                  <div className="flex items-center gap-3 mb-6 bg-[#FFE66D] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] shrink-0">
                     <Sparkles size={20} className="text-gray-900" />
                     <h4 className="font-black uppercase tracking-widest text-gray-900">AI Summary</h4>
                   </div>
 
-                  <div className="flex-1 bg-gray-50 rounded-2xl p-6 border-4 border-gray-900 text-gray-800 font-medium leading-relaxed text-lg overflow-y-auto max-h-[500px] break-words">
+                  <div className="flex-1 min-h-0 bg-gray-50 rounded-2xl p-6 border-4 border-gray-900 text-gray-800 font-medium leading-relaxed text-lg overflow-y-auto break-words">
                     {activeNote?.summary ? (
-                      <div className="prose prose-lg max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:font-black prose-strong:text-gray-900 text-gray-800">
-                        <ReactMarkdown>{activeNote.summary}</ReactMarkdown>
-                      </div>
+                      <ReactMarkdown
+                        components={{
+                          ul: ({ children }) => (
+                            <ul className="list-disc pl-6 my-2 space-y-2 text-gray-900 font-medium">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal pl-6 my-2 space-y-2 text-gray-900 font-medium">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="leading-relaxed">{children}</li>
+                          ),
+                          p: ({ children }) => (
+                            <p className="my-2 text-gray-800 leading-relaxed">{children}</p>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-black text-gray-900">{children}</strong>
+                          ),
+                        }}
+                      >
+                        {activeNote.summary}
+                      </ReactMarkdown>
                     ) : (
-                      <span className="text-gray-500 italic">No summary generated.</span>
+                      <div className="h-full flex items-center justify-center text-gray-500 italic">
+                        No summary generated.
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Transcript */}
-                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col">
-                  <div className="flex items-center gap-3 mb-6 bg-[#4ECDC4] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827]">
+                {/* Transcript Card */}
+                <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-[550px] w-full">
+                  <div className="flex items-center gap-3 mb-6 bg-[#4ECDC4] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] shrink-0">
                     <FileText size={20} className="text-gray-900" />
                     <h4 className="font-black uppercase tracking-widest text-gray-900">Transcript</h4>
                   </div>
-                  <div className="flex-1 bg-gray-900 rounded-2xl p-6 border-4 border-gray-900 text-green-400 font-mono text-sm leading-relaxed max-h-[500px] overflow-y-auto whitespace-pre-wrap shadow-inner">
-                    {activeNote.transcript || "No transcript available."}
+
+                  <div className="flex-1 min-h-0 bg-[#0f172a] rounded-2xl p-6 border-4 border-gray-900 text-emerald-400 font-mono leading-relaxed text-lg overflow-y-auto break-words whitespace-pre-wrap">
+                    {activeNote?.transcript ? (
+                      activeNote.transcript
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-slate-500 italic font-sans">
+                        No transcript available.
+                      </div>
+                    )}
                   </div>
                 </div>
-
               </div>
             )}
 
