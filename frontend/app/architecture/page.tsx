@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Code, Database, Server, Cpu, HardDrive } from 'lucide-react';
+import { ArrowLeft, Code, Database, Server, Cpu, HardDrive, ShieldCheck, Zap } from 'lucide-react';
 
 export default function Architecture() {
   return (
@@ -19,56 +19,97 @@ export default function Architecture() {
         {/* Title Card */}
         <div className="bg-[#4ECDC4] border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] mb-10">
           <h1 className="text-4xl font-black uppercase tracking-tighter mb-2">System Architecture</h1>
-          <p className="font-bold text-gray-800 text-lg">How Vocalize handles heavy audio files asynchronously.</p>
+          <p className="font-bold text-gray-800 text-lg">
+            How Textalize handles direct S3 uploads, asynchronous Gnani ASR, and multi-model LLM summarization.
+          </p>
         </div>
 
         {/* Content Sections */}
         <div className="space-y-8">
           
+          {/* Section 1: Presigned Direct S3 Upload */}
           <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
             <div className="flex items-center gap-3 mb-4">
-              <Server className="text-[#FF6B6B]" size={28} />
-              <h2 className="text-2xl font-black uppercase">The Flow: Upload to Transcript</h2>
+              <Zap className="text-[#FF6B6B]" size={28} />
+              <h2 className="text-2xl font-black uppercase">1. Direct-to-S3 Presigned Uploads</h2>
             </div>
             <p className="font-medium text-gray-700 leading-relaxed mb-4">
-              When a user uploads a file, it is sent via a synchronous `POST` request to the FastAPI backend. 
-              The backend immediately streams this file into a Supabase S3 Storage Bucket. 
-              Once stored, the backend generates a public URL and passes it to the Gnani Batch STT API.
+              To bypass Vercel's 4.5 MB serverless request body payload cap and avoid buffering heavy audio files in memory on Render, Textalize uses a <strong>Direct-to-S3 architecture</strong>:
             </p>
-            <p className="font-medium text-gray-700 leading-relaxed">
-              Because transcription takes time, the backend does not wait. It saves a `processing` state in the PostgreSQL database and immediately returns a 200 OK to the frontend. The Next.js frontend then begins polling the backend every 3 seconds for status updates.
-            </p>
+            <ol className="list-decimal list-inside font-medium text-gray-700 leading-relaxed space-y-2 pl-2">
+              <li>The frontend requests a signed S3 upload URL from FastAPI via <code>POST /api/presigned-url</code>.</li>
+              <li>The browser streams the raw audio binary directly into the Supabase S3 Storage bucket using an HTTP <code>PUT</code> request.</li>
+              <li>Once uploaded, the frontend triggers <code>POST /api/start-job</code> with the S3 public URL, initiating asynchronous transcription without server memory bloat.</li>
+            </ol>
           </section>
 
+          {/* Section 2: Async Gnani Batch ASR */}
           <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
             <div className="flex items-center gap-3 mb-4">
               <Cpu className="text-[#4F46E5]" size={28} />
-              <h2 className="text-2xl font-black uppercase">Handling Long Audio</h2>
+              <h2 className="text-2xl font-black uppercase">2. Gnani Batch ASR Pipeline</h2>
             </div>
+            <p className="font-medium text-gray-700 leading-relaxed mb-4">
+              Standard REST ASR APIs restrict audio length to 60 seconds. Textalize utilizes the <strong>Gnani Batch ASR v3 API</strong> to process long recordings (up to 4 hours):
+            </p>
             <p className="font-medium text-gray-700 leading-relaxed">
-              The Gnani REST API is capped at 60 seconds and restricts direct file uploads to 10 MB. To comfortably handle 2+ minute recordings, this architecture pivots to the **Gnani Batch API**. By hosting the file ourselves on S3 and passing a public URL to the Batch API, we bypass the 10 MB limit entirely (bounded only by a 4-hour duration limit).
+              The backend submits the S3 audio URL to Gnani and immediately returns a job ID with a <code>processing</code> status to PostgreSQL. The Next.js frontend polls the status endpoint every 3 seconds while showing an interactive progress state.
             </p>
           </section>
 
+          {/* Section 3: Multi-Model LLM Fallback Chain */}
           <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
             <div className="flex items-center gap-3 mb-4">
-              <HardDrive className="text-[#FFE66D]" size={28} />
-              <h2 className="text-2xl font-black uppercase">Where Files Live</h2>
+              <ShieldCheck className="text-[#A8E6CF]" size={28} />
+              <h2 className="text-2xl font-black uppercase">3. Resilient Multi-Model LLM Summarization</h2>
+            </div>
+            <p className="font-medium text-gray-700 leading-relaxed mb-4">
+              To guarantee high availability and prevent <code>429 RESOURCE_EXHAUSTED</code> quota failures on free tiers, the backend implements an <strong>asynchronous fallback chain</strong> across 7 active models:
+            </p>
+            <ul className="list-disc list-inside font-medium text-gray-700 leading-relaxed space-y-2 pl-2 mb-4">
+              <li><code>gemini-3.5-flash-lite</code> (500 Requests/Day)</li>
+              <li><code>gemini-3.1-flash-lite</code> (500 Requests/Day)</li>
+              <li><code>gemma-4-26b</code> & <code>gemma-4-31b</code> (14,400 Requests/Day each)</li>
+              <li><code>gemini-3.8-flash</code> & <code>gemini-3.5-flash</code> (20 Requests/Day preview tiers)</li>
+            </ul>
+            <p className="font-medium text-gray-700 leading-relaxed">
+              If any model returns a 429 quota error or 404 deprecation notice, the async handler instantly skips to the next candidate model in milliseconds without sleeping or blocking the event loop.
+            </p>
+          </section>
+
+          {/* Section 4: Hosting & Infrastructure */}
+          <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
+            <div className="flex items-center gap-3 mb-4">
+              <Server className="text-[#FFE66D]" size={28} />
+              <h2 className="text-2xl font-black uppercase">4. Hosting & Runtime Topology</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-medium text-gray-800">
+              <div className="bg-gray-50 border-2 border-gray-900 p-4 rounded-xl">
+                <span className="font-black block uppercase text-sm mb-1">Frontend</span>
+                Next.js (App Router) deployed on Vercel with runtime API route proxies.
+              </div>
+              <div className="bg-gray-50 border-2 border-gray-900 p-4 rounded-xl">
+                <span className="font-black block uppercase text-sm mb-1">Backend</span>
+                FastAPI (Python 3.11) hosted on Render with automatic cold-start retry handling.
+              </div>
+              <div className="bg-gray-50 border-2 border-gray-900 p-4 rounded-xl">
+                <span className="font-black block uppercase text-sm mb-1">Storage & DB</span>
+                Supabase S3 bucket for audio storage & PostgreSQL database for transcript logs.
+              </div>
+            </div>
+          </section>
+
+          {/* Section 5: Future Improvements */}
+          <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
+            <div className="flex items-center gap-3 mb-4">
+              <HardDrive className="text-[#FF6B6B]" size={28} />
+              <h2 className="text-2xl font-black uppercase">5. Roadmap & Optimization</h2>
             </div>
             <ul className="list-disc list-inside font-medium text-gray-700 leading-relaxed space-y-2">
-              <li><strong>Audio Files:</strong> Stored persistently in a Supabase S3 Bucket with a public-read ACL.</li>
-              <li><strong>State & Results:</strong> A Supabase PostgreSQL database tracks the job IDs, statuses, and ultimately stores the final JSON transcript and Gemini AI summary.</li>
+              <li><strong>Real-time WebSockets / SSE:</strong> Replace HTTP status polling with Server-Sent Events for instant transcript streaming.</li>
+              <li><strong>Celery & Redis Worker Queue:</strong> Offload ASR status checking to dedicated background workers rather than dynamic request polling.</li>
+              <li><strong>Automated S3 Lifecycle Policies:</strong> Configure 30-day auto-deletion on Supabase S3 buckets to reduce storage overhead.</li>
             </ul>
-          </section>
-
-          <section className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827]">
-            <div className="flex items-center gap-3 mb-4">
-              <Database className="text-[#A8E6CF]" size={28} />
-              <h2 className="text-2xl font-black uppercase">Future Improvements</h2>
-            </div>
-            <p className="font-medium text-gray-700 leading-relaxed">
-              With more time, I would replace the frontend HTTP polling with WebSockets or Server-Sent Events (SSE) to reduce network overhead. I would also implement a dedicated Celery/Redis worker on the backend to handle the Gnani API polling, rather than doing it dynamically when the frontend requests a status check. Finally, I would add automatic deletion of the S3 audio files after 30 days to save storage costs.
-            </p>
           </section>
 
         </div>
