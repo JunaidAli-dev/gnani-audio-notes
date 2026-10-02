@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileAudio, CheckCircle2, Loader2, AlertCircle, Clock, FileText, Sparkles, Disc3, Server } from 'lucide-react';
+import { Upload, FileAudio, CheckCircle2, Loader2, AlertCircle, Clock, FileText, Sparkles, Disc3, Server, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface AudioNote {
@@ -24,6 +24,7 @@ export default function Home() {
   const [pollError, setPollError] = useState<string | null>(null);
   const [isLoadingNotes, setIsLoadingNotes] = useState(true);
   const [isBackendWakingUp, setIsBackendWakingUp] = useState(false);
+  const [copiedField, setCopiedField] = useState<'summary' | 'transcript' | null>(null);
 
   useEffect(() => {
     fetchNotes();
@@ -33,7 +34,6 @@ export default function Home() {
     try {
       setIsLoadingNotes(true);
 
-      // Trigger polite waking up notice if response takes more than 2.5 seconds
       const wakingTimer = setTimeout(() => {
         setIsBackendWakingUp(true);
       }, 2500);
@@ -53,7 +53,6 @@ export default function Home() {
       console.warn('Backend connecting / spin-up in progress...', err);
       setIsBackendWakingUp(true);
 
-      // Auto-retry polling every 4s while Render spins up (up to 8 retries ~ 32s)
       if (retryCount < 8) {
         setTimeout(() => fetchNotes(retryCount + 1), 4000);
       } else {
@@ -85,6 +84,17 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [currentNoteId, activeNote?.status]);
 
+  const handleCopy = async (text: string | undefined, field: 'summary' | 'transcript') => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy content to clipboard', err);
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return;
@@ -99,7 +109,6 @@ export default function Home() {
     setPollError(null);
 
     try {
-      // Step A: Request direct upload URL from backend
       const urlRes = await fetch(`/api/presigned-url?filename=${encodeURIComponent(file.name)}`, {
         method: 'POST',
       });
@@ -111,7 +120,6 @@ export default function Home() {
 
       const { upload_url, public_url, content_type } = await urlRes.json();
 
-      // Step B: Upload file directly to Supabase S3 using the exact signed Content-Type
       const uploadRes = await fetch(upload_url, {
         method: 'PUT',
         headers: {
@@ -121,7 +129,6 @@ export default function Home() {
       });
       if (!uploadRes.ok) throw new Error('Direct S3 upload failed.');
 
-      // Step C: Trigger backend processing pipeline
       const startRes = await fetch('/api/start-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -300,9 +307,32 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch w-full max-w-7xl mx-auto">
                 {/* AI Summary Card */}
                 <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-[550px] w-full">
-                  <div className="flex items-center gap-3 mb-6 bg-[#FFE66D] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] shrink-0">
-                    <Sparkles size={20} className="text-gray-900" />
-                    <h4 className="font-black uppercase tracking-widest text-gray-900">AI Summary</h4>
+                  
+                  {/* Badge with embedded Copy Button */}
+                  <div className="flex items-center justify-between bg-[#FFE66D] border-4 border-gray-900 w-full px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] mb-6 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <Sparkles size={20} className="text-gray-900" />
+                      <h4 className="font-black uppercase tracking-widest text-gray-900">AI Summary</h4>
+                    </div>
+                    {activeNote?.summary && (
+                      <button
+                        onClick={() => handleCopy(activeNote.summary, 'summary')}
+                        className="flex items-center gap-1.5 bg-white hover:bg-gray-100 border-2 border-gray-900 px-2.5 py-1 rounded-lg text-xs font-black uppercase text-gray-900 shadow-[2px_2px_0px_0px_#111827] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                        title="Copy AI Summary"
+                      >
+                        {copiedField === 'summary' ? (
+                          <>
+                            <Check size={14} className="text-emerald-600" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex-1 min-h-0 bg-gray-50 rounded-2xl p-6 border-4 border-gray-900 text-gray-800 font-medium leading-relaxed text-lg overflow-y-auto break-words">
@@ -342,9 +372,32 @@ export default function Home() {
 
                 {/* Transcript Card */}
                 <div className="bg-white border-4 border-gray-900 rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#111827] flex flex-col h-[550px] w-full">
-                  <div className="flex items-center gap-3 mb-6 bg-[#4ECDC4] border-4 border-gray-900 w-max px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] shrink-0">
-                    <FileText size={20} className="text-gray-900" />
-                    <h4 className="font-black uppercase tracking-widest text-gray-900">Transcript</h4>
+                  
+                  {/* Badge with embedded Copy Button */}
+                  <div className="flex items-center justify-between bg-[#4ECDC4] border-4 border-gray-900 w-full px-4 py-2 rounded-xl shadow-[4px_4px_0px_0px_#111827] mb-6 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <FileText size={20} className="text-gray-900" />
+                      <h4 className="font-black uppercase tracking-widest text-gray-900">Transcript</h4>
+                    </div>
+                    {activeNote?.transcript && (
+                      <button
+                        onClick={() => handleCopy(activeNote.transcript, 'transcript')}
+                        className="flex items-center gap-1.5 bg-white hover:bg-gray-100 border-2 border-gray-900 px-2.5 py-1 rounded-lg text-xs font-black uppercase text-gray-900 shadow-[2px_2px_0px_0px_#111827] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                        title="Copy Transcript"
+                      >
+                        {copiedField === 'transcript' ? (
+                          <>
+                            <Check size={14} className="text-emerald-600" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex-1 min-h-0 bg-[#0f172a] rounded-2xl p-6 border-4 border-gray-900 text-emerald-400 font-mono leading-relaxed text-lg overflow-y-auto break-words whitespace-pre-wrap">
